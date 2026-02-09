@@ -12,16 +12,14 @@
             background: #000;
             overflow: hidden;
             touch-action: none;
-            /* Prevents mobile scrolling while playing */
             font-family: 'Segoe UI', sans-serif;
             -webkit-user-select: none;
-            /* Mobile UI polish */
             user-select: none;
         }
 
         canvas {
             display: block;
-            cursor: none;
+            cursor: crosshair;
         }
 
         #boot-up {
@@ -41,25 +39,24 @@
         .start-btn {
             background: #0ff;
             color: #000;
-            padding: clamp(15px, 5vw, 25px) clamp(40px, 10vw, 80px);
+            padding: 20px 60px;
             border-radius: 15px;
-            font-size: clamp(20px, 6vw, 28px);
+            font-size: 28px;
             font-weight: 900;
             cursor: pointer;
             border: 4px solid #fff;
             box-shadow: 0 0 50px #0ff;
             transition: 0.3s;
-            text-transform: uppercase;
         }
 
         #hud {
             position: absolute;
-            top: env(safe-area-inset-top, 20px);
+            top: 20px;
             width: 100%;
             display: flex;
             justify-content: space-around;
             color: #0ff;
-            font-size: clamp(16px, 4vw, 24px);
+            font-size: 24px;
             font-weight: bold;
             pointer-events: none;
             z-index: 10;
@@ -75,10 +72,10 @@
         <div>ENERGY: <span id="xp">0</span></div>
     </div>
 
-    <div id="boot-up" onclick="powerOn()">
-        <h1 style="font-size: clamp(3rem, 15vw, 5rem); margin: 0; letter-spacing: 10px;">JIVESH</h1>
-        <p style="color: #fff; margin-bottom: 40px; letter-spacing: 3px; font-size: 1rem;">SUPERHERO DATA-QUEST</p>
-        <button class="start-btn">BOOT SYSTEM</button>
+    <div id="boot-up">
+        <h1 style="font-size: 4rem; margin: 0; letter-spacing: 10px;">JIVESH</h1>
+        <p style="color: #fff; margin-bottom: 40px; letter-spacing: 5px;">SUPERHERO DATA-QUEST</p>
+        <button class="start-btn" onclick="powerOn()">BOOT SYSTEM</button>
     </div>
 
     <canvas id="game"></canvas>
@@ -90,104 +87,80 @@
         const bootScreen = document.getElementById('boot-up');
 
         let active = false, score = 0, items = [], particles = [];
-        let pX = 0, pTargetX = 0;
+        let pX = window.innerWidth / 2, pTargetX = window.innerWidth / 2;
         let audioCtx, masterGain;
 
-        // --- MOBILE OPTIMIZED AUDIO ---
+        // Music Logic
         function startMusic() {
-            if (!audioCtx) return;
-            const melody = [261.63, 329.63, 392.00, 523.25, 440.00, 349.23];
-            let noteIndex = 0;
-
+            const melody = [261.6, 329.6, 392.0, 523.2];
+            let i = 0;
             setInterval(() => {
                 if (!active) return;
                 const osc = audioCtx.createOscillator();
-                const noteGain = audioCtx.createGain();
-
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(melody[noteIndex], audioCtx.currentTime);
-
-                noteGain.gain.setValueAtTime(0.04, audioCtx.currentTime);
-                noteGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.8);
-
-                osc.connect(noteGain);
-                noteGain.connect(masterGain);
-
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.8);
-
-                noteIndex = (noteIndex + 1) % melody.length;
-            }, 300);
+                const g = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.value = melody[i];
+                g.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                osc.connect(g); g.connect(masterGain);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+                i = (i + 1) % melody.length;
+            }, 350);
         }
 
-        function playSfx(freq, type) {
+        function playSfx(f, type = 'sine') {
             if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
+            const o = audioCtx.createOscillator();
             const g = audioCtx.createGain();
-            osc.type = type || 'sine';
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            o.type = type; o.frequency.value = f;
             g.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.4);
-            osc.connect(g);
-            g.connect(masterGain);
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.4);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+            o.connect(g); g.connect(masterGain);
+            o.start(); o.stop(audioCtx.currentTime + 0.3);
         }
 
         function powerOn() {
-            // Audio context must start on a user gesture (mobile rule)
+            // Force browser to allow sound
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             masterGain = audioCtx.createGain();
-            masterGain.gain.value = 0.3;
             masterGain.connect(audioCtx.destination);
-
             if (audioCtx.state === 'suspended') audioCtx.resume();
 
             bootScreen.style.display = 'none';
-            score = 0; items = []; active = true;
-            resize();
-            pX = canvas.width / 2;
-            pTargetX = pX;
-
+            active = true;
+            score = 0;
+            items = [];
             startMusic();
             requestAnimationFrame(engine);
         }
 
-        // --- TOUCH & MOUSE UNIFICATION ---
-        const getX = (e) => {
-            if (e.touches && e.touches.length > 0) return e.touches[0].clientX;
-            return e.clientX;
+        // Mouse & Touch Input
+        const updateInput = (e) => {
+            pTargetX = e.touches ? e.touches[0].clientX : e.clientX;
         };
-
-        window.addEventListener('mousemove', (e) => { pTargetX = getX(e); }, { passive: true });
-        window.addEventListener('touchmove', (e) => {
-            e.preventDefault(); // Stops mobile screen from wobbling
-            pTargetX = getX(e);
-        }, { passive: false });
+        window.addEventListener('mousemove', updateInput);
+        window.addEventListener('touchmove', (e) => { e.preventDefault(); updateInput(e); }, { passive: false });
 
         function drawJivesh(x, y, tilt) {
             ctx.save();
-            ctx.translate(x | 0, (y + Math.sin(Date.now() / 200) * 8) | 0);
+            ctx.translate(x, y + Math.sin(Date.now() / 200) * 10);
             ctx.rotate(tilt);
 
-            // 1. DYNAMIC CAPE
+            // Cape
             ctx.fillStyle = '#d40000';
             ctx.beginPath();
             ctx.moveTo(-15, 0);
-            ctx.quadraticCurveTo(-50 - Math.abs(tilt * 40), 30, -5, 60);
-            ctx.lineTo(20, 40);
+            ctx.quadraticCurveTo(-60 - Math.abs(tilt * 40), 30, -5, 65);
+            ctx.lineTo(20, 45);
             ctx.fill();
 
-            // 2. HERO BODY
-            const bodyGrad = ctx.createLinearGradient(0, 0, 0, 60);
-            bodyGrad.addColorStop(0, '#0044ff');
-            bodyGrad.addColorStop(1, '#001133');
-            ctx.fillStyle = bodyGrad;
+            // Body
+            ctx.fillStyle = '#ff6600'; // Orange suit for Jivesh
             ctx.beginPath();
-            ctx.roundRect(-25, 0, 50, 60, 12);
+            ctx.roundRect(-25, 0, 50, 60, 15);
             ctx.fill();
 
-            // 3. JIVESH NAME ON T-SHIRT
+            // Name
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 12px Arial';
             ctx.textAlign = 'center';
@@ -195,13 +168,13 @@
             ctx.strokeStyle = '#0ff';
             ctx.strokeRect(-20, 22, 40, 18);
 
-            // 4. THE HELMET
+            // Helmet
             ctx.fillStyle = '#f0f0f0';
             ctx.beginPath(); ctx.arc(0, -25, 25, 0, 7); ctx.fill();
-            ctx.fillStyle = '#ffcc00';
+            ctx.fillStyle = '#ffcc00'; // Visor
             ctx.roundRect(-18, -35, 36, 18, 5); ctx.fill();
 
-            // 5. JETPACK FLAMES
+            // Jets
             ctx.fillStyle = '#0ff';
             ctx.fillRect(-18, 60, 8, 15 + Math.random() * 10);
             ctx.fillRect(10, 60, 8, 15 + Math.random() * 10);
@@ -212,61 +185,47 @@
         function engine() {
             if (!active) return;
 
-            // BACKGROUND
-            ctx.fillStyle = '#00040a';
+            // Clear Background
+            ctx.fillStyle = '#000510';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // STARS
-            ctx.fillStyle = '#fff';
-            for (let i = 0; i < 15; i++) {
-                ctx.fillRect((i * 137) % canvas.width, (Date.now() * 0.1 + i * 250) % canvas.height, 2, 2);
-            }
+            // Smooth Movement
+            pX += (pTargetX - pX) * 0.15;
+            let tilt = (pTargetX - pX) * 0.005;
 
-            // SMOOTH PHYSICS (LERP)
-            let dx = pTargetX - pX;
-            pX += dx * 0.2;
-            let tilt = dx * 0.006;
+            drawJivesh(pX, canvas.height - 150, tilt);
 
-            drawJivesh(pX, canvas.height - 120, tilt);
-
-            // ITEM SPAWNING
+            // Objects
             if (Math.random() < 0.04) {
-                items.push({ x: Math.random() * canvas.width, y: -50, t: Math.random() > 0.3 ? '🍕' : '🥦', s: 4 + (score / 120) });
+                items.push({ x: Math.random() * canvas.width, y: -50, t: Math.random() > 0.3 ? '🍕' : '🥦', s: 5 + (score / 150) });
             }
 
             for (let i = items.length - 1; i >= 0; i--) {
                 let it = items[i];
                 it.y += it.s;
-                ctx.font = '45px Arial';
-                ctx.textAlign = 'center';
+                ctx.font = '50px Arial';
                 ctx.fillText(it.t, it.x, it.y);
 
-                // Collision
-                if (Math.hypot(it.x - pX, it.y - (canvas.height - 120)) < 65) {
+                if (Math.hypot(it.x - pX, it.y - (canvas.height - 150)) < 70) {
                     if (it.t === '🍕') {
-                        score += 10;
-                        xpEl.innerText = score;
-                        playSfx(600);
-                        items.splice(i, 1);
-                        for (let j = 0; j < 6; j++) particles.push({ x: it.x, y: it.y, vx: Math.random() * 8 - 4, vy: Math.random() * 8 - 4, l: 1 });
+                        score += 10; xpEl.innerText = score;
+                        playSfx(880); items.splice(i, 1);
+                        for (let j = 0; j < 8; j++) particles.push({ x: it.x, y: it.y, vx: Math.random() * 10 - 5, vy: Math.random() * 10 - 5, l: 1 });
                     } else {
-                        active = false;
-                        playSfx(100, 'square');
+                        active = false; playSfx(150, 'sawtooth');
                         bootScreen.style.display = 'flex';
                         bootScreen.querySelector('h1').innerText = "TRY AGAIN";
                         bootScreen.querySelector('p').innerText = "Jivesh, Broccoli hit the suit! Score: " + score;
                     }
-                } else if (it.y > canvas.height + 50) {
-                    items.splice(i, 1);
-                }
+                } else if (it.y > canvas.height + 50) items.splice(i, 1);
             }
 
-            // PARTICLES
+            // Particles
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
                 p.x += p.vx; p.y += p.vy; p.l -= 0.03;
                 ctx.fillStyle = `rgba(0, 255, 255, ${p.l})`;
-                ctx.fillRect(p.x | 0, p.y | 0, 4, 4);
+                ctx.fillRect(p.x, p.y, 4, 4);
                 if (p.l <= 0) particles.splice(i, 1);
             }
 
@@ -276,9 +235,7 @@
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            pX = canvas.width / 2;
         }
-
         window.addEventListener('resize', resize);
         resize();
     </script>
