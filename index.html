@@ -89,6 +89,9 @@
         let active = false, score = 0, items = [], particles = [];
         let pX = window.innerWidth / 2, pTargetX = window.innerWidth / 2;
         let audioCtx, masterGain;
+        
+        // NEW: Scale Factor variable
+        let scaleFactor = 1;
 
         // Music Logic
         function startMusic() {
@@ -120,7 +123,6 @@
         }
 
         function powerOn() {
-            // Force browser to allow sound
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             masterGain = audioCtx.createGain();
             masterGain.connect(audioCtx.destination);
@@ -134,7 +136,6 @@
             requestAnimationFrame(engine);
         }
 
-        // Mouse & Touch Input
         const updateInput = (e) => {
             pTargetX = e.touches ? e.touches[0].clientX : e.clientX;
         };
@@ -145,6 +146,9 @@
             ctx.save();
             ctx.translate(x, y + Math.sin(Date.now() / 200) * 10);
             ctx.rotate(tilt);
+            
+            // FIX 1: Apply the scale factor here to shrink Jivesh on mobile
+            ctx.scale(scaleFactor, scaleFactor);
 
             // Cape
             ctx.fillStyle = '#d40000';
@@ -155,7 +159,7 @@
             ctx.fill();
 
             // Body
-            ctx.fillStyle = '#ff6600'; // Orange suit for Jivesh
+            ctx.fillStyle = '#ff6600';
             ctx.beginPath();
             ctx.roundRect(-25, 0, 50, 60, 15);
             ctx.fill();
@@ -193,6 +197,7 @@
             pX += (pTargetX - pX) * 0.15;
             let tilt = (pTargetX - pX) * 0.005;
 
+            // FIX 2: Draw Jivesh higher up on the screen on mobile (optional but helps visibility)
             drawJivesh(pX, canvas.height - 150, tilt);
 
             // Objects
@@ -203,10 +208,16 @@
             for (let i = items.length - 1; i >= 0; i--) {
                 let it = items[i];
                 it.y += it.s;
-                ctx.font = '50px Arial';
+                
+                // FIX 3: Scale the text size (Emoji) based on screen size
+                ctx.font = (50 * scaleFactor) + 'px Arial';
                 ctx.fillText(it.t, it.x, it.y);
 
-                if (Math.hypot(it.x - pX, it.y - (canvas.height - 150)) < 70) {
+                // FIX 4: Scale the collision distance so hitboxes are smaller on mobile
+                // Base distance 65 * scaleFactor
+                let hitDistance = 65 * scaleFactor;
+
+                if (Math.hypot(it.x - pX, it.y - (canvas.height - 150)) < hitDistance) {
                     if (it.t === '🍕') {
                         score += 10; xpEl.innerText = score;
                         playSfx(880); items.splice(i, 1);
@@ -215,7 +226,7 @@
                         active = false; playSfx(150, 'sawtooth');
                         bootScreen.style.display = 'flex';
                         bootScreen.querySelector('h1').innerText = "TRY AGAIN";
-                        bootScreen.querySelector('p').innerText = "Jivesh, Broccoli hit the suit! Score: " + score;
+                        bootScreen.querySelector('p').innerText = "Hit! Score: " + score;
                     }
                 } else if (it.y > canvas.height + 50) items.splice(i, 1);
             }
@@ -235,6 +246,10 @@
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+            
+            // FIX 5: Calculate scale factor. 
+            // If screen width < 600px (Mobile), scale down to 0.6 (60%). Otherwise keep it 1.0.
+            scaleFactor = window.innerWidth < 600 ? 0.6 : 1;
         }
         window.addEventListener('resize', resize);
         resize();
